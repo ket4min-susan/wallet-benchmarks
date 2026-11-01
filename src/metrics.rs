@@ -734,8 +734,12 @@ fn median(mut values: Vec<f64>) -> f64 {
 /// Computes the deltas the spec calls out, for every mode present in `reports`.
 pub fn compute_deltas(reports: &[ScenarioReport]) -> Vec<Delta> {
     let mut deltas = Vec::new();
-    let mut modes: Vec<&str> = reports.iter().map(|r| r.mode.as_str()).collect();
-    modes.dedup();
+    let mut modes: Vec<&str> = Vec::new();
+    for report in reports {
+        if !modes.contains(&report.mode.as_str()) {
+            modes.push(&report.mode);
+        }
+    }
 
     for mode in modes {
         let scan_of = |id: &str| -> Option<f64> {
@@ -881,6 +885,22 @@ mod tests {
         assert!((by_name("T_scan(S2) - T_scan(B0)") - 15.0).abs() < f64::EPSILON);
         assert!((by_name("T_scan(S6) - T_scan(S2)") - 15.0).abs() < f64::EPSILON);
         assert!((by_name("T_scan(S6) / T_scan(B0)") - 4.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn interleaved_modes_do_not_duplicate_deltas() {
+        let reports = vec![
+            scan_report("old_wallet", "B0", 10.0),
+            scan_report("new_wallet", "B0", 5.0),
+            scan_report("old_wallet", "S2", 25.0),
+            scan_report("new_wallet", "S2", 12.0),
+        ];
+        let deltas = compute_deltas(&reports);
+        assert_eq!(deltas.len(), 2);
+        assert_eq!(deltas[0].mode, "old_wallet");
+        assert!((deltas[0].value - 15.0).abs() < f64::EPSILON);
+        assert_eq!(deltas[1].mode, "new_wallet");
+        assert!((deltas[1].value - 7.0).abs() < f64::EPSILON);
     }
 
     #[test]
